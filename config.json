@@ -1,0 +1,15 @@
+{
+  "symbols": ["MARA", "TLT", "IWM"],
+  "correlations": {
+    "MARA": "BTC-USD",
+    "TLT": "TNX",
+    "IWM": "VIX"
+  },
+  "expiration": "2024-04-26",
+  "lookback_days": 30,
+  "filters": {
+    "min_delta": 0.3,
+    "max_theta": -0.2,
+    "min_iv": 0.25
+  }
+}
