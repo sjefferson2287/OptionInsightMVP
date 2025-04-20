@@ -1,15 +1,14 @@
 {
-  "symbols": ["MARA", "TLT", "IWM"],
-  "correlations": {
-    "MARA": "BTC-USD",
-    "TLT": "TNX",
-    "IWM": "VIX"
-  },
-  "expiration": "2024-04-26",
+  "data_source": "polygon",
+  "symbols": ["MARA","TLT","IWM","AAPL","TSLA"],
+  "correlations": {"MARA":"BTC-USD","TLT":"TNX","IWM":"VIX"},
+  "expiration": null,
+  "max_days_to_expiry": 60,
   "lookback_days": 30,
   "filters": {
-    "min_delta": 0.3,
-    "max_theta": -0.2,
-    "min_iv": 0.25
+    "min_delta": 0.0,
+    "max_theta": 0.0,
+    "min_iv": 0.0,
+    "min_open_interest": 1
   }
 }
