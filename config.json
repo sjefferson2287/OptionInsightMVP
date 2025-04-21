@@ -16,15 +16,16 @@
   "max_days_to_expiry": 60,
   "lookback_days": 30,
   "filters": {
-    "min_delta": 0.0,
-    "max_theta": 0.0,
-    "min_iv": 0.0,
-    "min_open_interest": 1
+    "min_delta": 0.1,
+    "max_theta": -0.5,         
+    "min_iv": 0.1,
+    "min_open_interest": 5
   },
   "technical_filters": {
-    "rsi_oversold": 30,
-    "rsi_overbought": 70,
-    "bb_break_lower": true,
-    "bb_break_upper": false
+    "rsi_oversold": 40,
+    "rsi_overbought": 60,
+    "bb_break_lower": false,
+    "bb_break_upper": false,
+    "bb_tolerance": 0.01       
   }
 }

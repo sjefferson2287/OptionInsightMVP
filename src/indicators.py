@@ -16,4 +16,7 @@ def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
     rs = gain / loss
     df['RSI'] = 100 - (100 / (1 + rs))
 
+    # Debug: Print the last few rows of indicators
+    print("Indicators calculated:\n", df[["Close", "UpperBB", "LowerBB", "RSI"]].tail())
+
     return df

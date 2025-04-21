@@ -6,6 +6,7 @@ from decouple import config
 import yfinance as yf
 
 POLYGON_KEY = config("POLYGON_API_KEY")
+BASE_URL = "https://api.polygon.io"
 
 def get_stock_data(symbol: str, days: int = 30) -> pd.DataFrame:
     try:
@@ -100,3 +101,37 @@ def get_option_chain(
             rows.append(row)
 
     return pd.DataFrame(rows)
+
+def get_intraday_data(symbol: str, multiplier: int = 1, timespan: str = "minute", from_date: str = None, to_date: str = None) -> pd.DataFrame:
+    """
+    Fetch intraday data for a given symbol from Polygon.
+    """
+    if not from_date or not to_date:
+        raise ValueError("Both 'from_date' and 'to_date' must be provided for intraday data.")
+
+    url = f"{BASE_URL}/v2/aggs/ticker/{symbol}/range/{multiplier}/{timespan}/{from_date}/{to_date}"
+    params = {
+        "apiKey": POLYGON_KEY
+    }
+    response = requests.get(url, params=params)
+    response.raise_for_status()  # Raise an error for bad responses
+    data = response.json()
+
+    if "results" in data:
+        # Convert results to a DataFrame
+        df = pd.DataFrame(data["results"])
+        # Convert timestamps to readable datetime
+        df["t"] = pd.to_datetime(df["t"], unit="ms")
+        df.rename(columns={"t": "timestamp", "o": "open", "h": "high", "l": "low", "c": "close", "v": "volume"}, inplace=True)
+        return df
+    else:
+        print(f"No intraday data found for {symbol}: {data}")
+        return pd.DataFrame()
+
+# Example usage
+if __name__ == "__main__":
+    symbol = "AAPL"
+    from_date = "2025-04-01"
+    to_date = "2025-04-21"
+    intraday_data = get_intraday_data(symbol, multiplier=1, timespan="minute", from_date=from_date, to_date=to_date)
+    print(intraday_data.head())
