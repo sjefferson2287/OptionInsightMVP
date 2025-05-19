@@ -11,7 +11,7 @@
   },
   "expiration": null,
   "max_days_to_expiry": 60,
-  "lookback_days": 30,
+  "lookback_days": 35,
   "filters": {
     "min_delta": 0.1,
     "max_theta": -0.5,         

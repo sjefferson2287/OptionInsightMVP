@@ -13,7 +13,7 @@ The OptionInsight MVP is a Python-based command-line tool designed to scan a lis
 - Dynamic addition of new tickers or expiration dates without changing the code
 
 ### 2. Historical Stock Data
-- Pulled using `yfinance`
+- Pulled using the Polygon.io API (`polygon-api-client` library).
 - Includes daily Open, High, Low, Close, and Volume
 - Used to compute technical indicators (e.g., RSI, Bollinger Bands)
 
@@ -66,14 +66,15 @@ optioninsight_mvp/
 ├── config.json              # User-defined tickers, filters, and expiration
 ├── requirements.txt         # Python dependencies
 ├── output/
-│   └── report.csv           # Output report
+│   └── report.csv           # Output report (Note: filenames are now timestamped e.g., report_YYYYMMDD_HHMMSS.csv)
 └── src/
-    ├── fetch_data.py        # Stock & option chain data
+    ├── fetch_data.py        # Stock & option chain data (Polygon.io)
     ├── indicators.py        # RSI, Bollinger Bands
     ├── pricing_models.py    # Black-Scholes model
     ├── greeks.py            # Greeks calculations
     ├── report.py            # Output formatting and export
     ├── utils.py             # Reusable helper functions
+    ├── financial_utils.py   # Financial calculation utilities (e.g., historical volatility)
     └── correlation.py       # (Stub) correlated asset comparison
 ```
 
@@ -89,7 +90,7 @@ optioninsight_mvp/
     "IWM": "VIX"
   },
   "expiration": "2024-04-26",
-  "lookback_days": 30,
+  "lookback_days": 35,
   "filters": {
     "min_delta": 0.3,
     "max_theta": -0.2,
@@ -97,6 +98,7 @@ optioninsight_mvp/
   }
 }
 ```
+*Note on `lookback_days`*: This has been updated to 35 from the original 30 to ensure a sufficient number of trading days are fetched for robust calculation of 20-day historical volatility, accommodating for weekends and holidays.*
 
 ---
 
@@ -123,5 +125,5 @@ python main.py --symbols AAPL TSLA --expiration 2024-05-10
 
 ## Requirements
 Python 3.9+  
-Libraries: `yfinance`, `numpy`, `pandas`, `scipy`
+Libraries: `pandas`, `numpy`, `scipy`, `requests`, `polygon-api-client`, `python-decouple`
 
