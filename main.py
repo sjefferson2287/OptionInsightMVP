@@ -12,6 +12,7 @@ log = logging.getLogger(__name__)
 
 # Assuming your custom modules are in a 'src' folder relative to main.py
 from src.fetch_data import get_stock_data, get_option_chain
+from src.financial_utils import calculate_historical_volatility
 from src.indicators import compute_indicators
 from src.pricing_models import calculate_theoretical_prices
 from src.greeks import compute_greeks
@@ -76,34 +77,16 @@ def main(symbols=None, expiration=None):
 
         last_close = stock_df["Close"].iloc[-1]
 
-        log.debug(f"Calculating hist_vol for {symbol}...")
+        log.debug(f"Calculating historical volatility for {symbol} using calculate_historical_volatility function...")
         step_start_time = time.time() # Optional profiling
-        rolling_std = stock_df["Close"].pct_change().rolling(window=20).std()
-        if rolling_std.empty:
-            log.warning(f"Could not calculate historical volatility (rolling stddev series empty) for {symbol}, skipping.")
+        # Use the new function to calculate historical volatility
+        hist_vol = calculate_historical_volatility(stock_df, window=20) # Default window in old code was 20
+
+        if hist_vol is None:
+            log.warning(f"Historical volatility calculation failed for {symbol} using calculate_historical_volatility. Skipping.")
             continue
-        last_std = rolling_std.iloc[-1]
-        na_flag = False
-        if isinstance(last_std, pd.Series):
-            na_flag = last_std.isna().any()
         else:
-            na_flag = pd.isna(last_std)
-        if na_flag:
-            log.warning(f"Could not calculate historical volatility (result was NaN) for {symbol}, skipping.")
-            continue
-        try:
-            if isinstance(last_std, pd.Series):
-                 scalar_std = last_std.item()
-            else:
-                 scalar_std = last_std
-            hist_vol = float(scalar_std) * (252 ** 0.5)
-            log.debug(f"Calculated hist_vol for {symbol}: {hist_vol:.4f}. Time: {time.time() - step_start_time:.2f}s")
-        except ValueError as e:
-             log.warning(f"Error converting volatility std dev to float for {symbol}: {e}. Skipping.")
-             continue
-        except Exception as e:
-             log.warning(f"Unexpected error calculating final hist_vol for {symbol}: {e}. Skipping.")
-             continue
+            log.info(f"Calculated historical volatility for {symbol}: {hist_vol:.4f}. Time: {time.time() - step_start_time:.2f}s")
 
         log.debug(f"Calculating indicators for {symbol}...")
         step_start_time = time.time() # Optional profiling

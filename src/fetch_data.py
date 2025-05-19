@@ -21,18 +21,79 @@ def get_stock_data(symbol: str, days: int = 30) -> pd.DataFrame:
         to_date_str = to_date.strftime("%Y-%m-%d")
 
         client = RESTClient(POLYGON_KEY) # Initialize client outside 'with' block
-        resp = client.stocks_equities_aggregates(symbol, 1, "day", from_date_str, to_date_str)
+        # Use list_aggs instead of stocks_equities_aggregates
+        aggs = client.list_aggs(
+            ticker=symbol,
+            multiplier=1,
+            timespan="day",
+            from_=from_date_str,
+            to=to_date_str,
+            limit=50000 # Max limit
+        )
 
+        # Convert iterator to list
+        results = list(aggs)
 
         # Check for empty response
-        if not resp.results:
+        if not results:
             print(f"No results found for {symbol} from {from_date_str} to {to_date_str}")
             return pd.DataFrame()
 
-        df = pd.DataFrame(resp.results)
-        df['timestamp'] = pd.to_datetime(df['t'], unit='ms')
+        df = pd.DataFrame(results)
+        # Ensure 't' (timestamp) is present before converting
+        if 't' not in df.columns and 'timestamp' not in df.columns:
+             # The new client might name the timestamp column differently or it might be nested.
+             # For now, let's assume 'timestamp' is the direct column name if 't' is not present.
+             # If 'timestamp' is also not present, we might need to inspect 'results' more closely.
+             # This part may need adjustment based on the actual structure of `aggs` items.
+             # Based on Polygon docs, 't' is the official field for timestamp in aggregates.
+             # However, the objects returned by list_aggs might have attributes like `open`, `high`, `low`, `close`, `volume`, `vwap`, `timestamp`, `transactions`, `otc`.
+             # Let's assume the objects have attributes that match the old 'o', 'h', 'l', 'c', 'v' structure or can be mapped.
+             # The new client's objects likely have direct attributes like .open, .high, etc.
+             # So, we might need to construct the DataFrame differently.
+
+             # Re-checking the example: `for a in client.list_aggs(...): aggs.append(a)`. `a` is an object.
+             # The DataFrame constructor should ideally handle a list of these objects.
+             # Let's assume the column names are 'open', 'high', 'low', 'close', 'volume', 'timestamp' directly from the objects.
+             # If `t` is not in `df.columns` after `pd.DataFrame(results)`, it means the objects from `list_aggs`
+             # might not have a 't' attribute directly, but rather a 'timestamp' attribute.
+             # The previous code used 't' from `resp.results`. The new client might provide objects with attributes.
+             # Let's assume the DataFrame columns will be named after the attributes of the agg objects.
+             # The `polygon-api-client` `Agg` object has attributes: open, high, low, close, volume, vwap, timestamp, transactions, otc.
+             # So, 'timestamp' should be the correct column name for the ms timestamp.
+             if 'timestamp' not in df.columns:
+                 print(f"Timestamp column ('t' or 'timestamp') not found in results for {symbol}")
+                 return pd.DataFrame() # Or handle error appropriately
+        
+        # If 't' exists (from old client structure, though unlikely now) convert it
+        if 't' in df.columns:
+            df['timestamp_col'] = pd.to_datetime(df['t'], unit='ms')
+        elif 'timestamp' in df.columns: # This is expected with the new client
+            df['timestamp_col'] = pd.to_datetime(df['timestamp'], unit='ms')
+        else:
+            # This case should ideally be caught by the check above.
+            print(f"Critical: Neither 't' nor 'timestamp' found after initial check for {symbol}")
+            return pd.DataFrame()
+
         df = df.rename(columns={
-            'o': 'Open',
+            'open': 'Open',      # Assuming new client uses 'open'
+            'high': 'High',      # Assuming new client uses 'high'
+            'low': 'Low',        # Assuming new client uses 'low'
+            'close': 'Close',    # Assuming new client uses 'close'
+            'volume': 'Volume',  # Assuming new client uses 'volume'
+            'timestamp_col': 'Date' # Renaming the converted timestamp column to 'Date'
+        })
+        # Drop original timestamp column if it wasn't 'timestamp_col' (e.g. if 't' or 'timestamp' was used for conversion)
+        if 't' in df.columns and 't' != 'Date':
+            df = df.drop(columns=['t'])
+        if 'timestamp' in df.columns and 'timestamp' != 'Date':
+            df = df.drop(columns=['timestamp'])
+
+        df = df.set_index('Date')
+        # Select only the required columns, in case list_aggs returned more (like vwap, transactions etc.)
+        return df[['Open', 'High', 'Low', 'Close', 'Volume']]
+
+    except Exception as e:
             'h': 'High',
             'l': 'Low',
             'c': 'Close',

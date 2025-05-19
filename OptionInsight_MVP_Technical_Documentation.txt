@@ -13,29 +13,35 @@ The OptionInsight MVP is a Python-based command-line tool designed to scan a lis
 - Dynamic addition of new tickers or expiration dates without changing the code
 
 ### 2. Historical Stock Data
-- Pulled using `yfinance`
-- Includes daily Open, High, Low, Close, and Volume
-- Used to compute technical indicators (e.g., RSI, Bollinger Bands)
+- Pulled using `polygon-api-client` (via Polygon.io).
+- Includes daily Open, High, Low, Close, and Volume.
+- Used to compute technical indicators (e.g., RSI, Bollinger Bands) and historical volatility.
 
 ### 3. Option Chain Retrieval
-- Full option chain (calls and puts) pulled for each ticker
-- Expiration is set via CLI or `config.json`
-- Data includes bid, ask, implied volatility, and last traded price
+- Full option chain (calls and puts) pulled for each ticker using Polygon.io.
+- Expiration is set via CLI or `config.json`.
+- Data includes bid, ask, implied volatility, and last traded price.
 
-### 4. Greeks Calculation
+### 4. Historical Volatility Calculation
+- Calculated using log returns of historical closing prices.
+- This functionality is encapsulated in `src/financial_utils.py`.
+- Provides a key input (`sigma`) for the Black-Scholes pricing model.
+
+### 5. Greeks Calculation
 - Using Black-Scholes model:
   - Delta
   - Gamma
   - Theta
   - Vega
-- Used to assess trade risk and reward potential
+- Used to assess trade risk and reward potential.
+- Takes historical volatility as an input.
 
-### 5. Technical Indicators
+### 6. Technical Indicators
 - RSI (14)
 - Bollinger Bands (20-day MA + 2 std dev)
 - Moving averages (future implementation)
 
-### 6. Trade Scoring
+### 7. Trade Scoring
 - Each option is scored based on:
   - Delta range (reward potential)
   - Theta (time decay risk)
@@ -43,11 +49,11 @@ The OptionInsight MVP is a Python-based command-line tool designed to scan a lis
   - Bollinger Band proximity
   - Correlated asset alignment (stub logic)
 
-### 7. Correlation Support (Stub for V1)
+### 8. Correlation Support (Stub for V1)
 - Configurable asset correlation mapping (e.g., MARA → BTC)
 - Placeholder for trend matching and future signal confirmation
 
-### 8. CSV Report Generation
+### 9. CSV Report Generation
 - Output includes:
   - Ticker, Option Symbol, Strike, Type, Expiration
   - Market Price, Theoretical Price, Mispricing
@@ -73,7 +79,8 @@ optioninsight_mvp/
     ├── pricing_models.py    # Black-Scholes model
     ├── greeks.py            # Greeks calculations
     ├── report.py            # Output formatting and export
-    ├── utils.py             # Reusable helper functions
+    ├── financial_utils.py   # Historical volatility and other financial calculations
+    ├── utils.py             # Reusable helper functions (if still applicable)
     └── correlation.py       # (Stub) correlated asset comparison
 ```
 
@@ -88,8 +95,8 @@ optioninsight_mvp/
     "TLT": "TNX",
     "IWM": "VIX"
   },
-  "expiration": "2024-04-26",
-  "lookback_days": 30,
+  "expiration": "2024-04-26", # Example, can be null
+  "lookback_days": 35,       # Default historical data period for TA and volatility
   "filters": {
     "min_delta": 0.3,
     "max_theta": -0.2,
@@ -122,6 +129,12 @@ python main.py --symbols AAPL TSLA --expiration 2024-05-10
 ---
 
 ## Requirements
-Python 3.9+  
-Libraries: `yfinance`, `numpy`, `pandas`, `scipy`
+Python 3.9+
+Libraries:
+- `polygon-api-client` (for stock and option data)
+- `pandas`
+- `numpy`
+- `scipy`
+- `requests` (used by polygon client and direct calls)
+- `python-decouple` (for API key management)
 
