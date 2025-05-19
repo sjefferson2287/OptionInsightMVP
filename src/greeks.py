@@ -2,11 +2,14 @@ import numpy as np
 import pandas as pd
 from scipy.stats import norm
 
-def compute_greeks(df: pd.DataFrame, S: float, r: float = 0.03, sigma=None) -> pd.DataFrame:
+def compute_greeks(df: pd.DataFrame, S: float, config: dict = None, sigma=None) -> pd.DataFrame:
     if df.empty or 'T' not in df.columns:
         return df
 
     df = df.copy()
+
+    # Get risk-free rate from config or default
+    r = config.get('risk_free_rate', 0.03) if config else 0.03
 
     # Ensure sigma is a float or fallback
     try:

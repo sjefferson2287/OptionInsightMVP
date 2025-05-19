@@ -1,25 +1,61 @@
 import os
 import requests
 import pandas as pd
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from decouple import config
-import yfinance as yf
+from polygon import RESTClient
 
-POLYGON_KEY = config("POLYGON_API_KEY")
+POLYGON_KEY = config("POLYGON_API_KEY", default="") # Get key, default to empty string if not found
 BASE_URL = "https://api.polygon.io"
 
 def get_stock_data(symbol: str, days: int = 30) -> pd.DataFrame:
+    if not POLYGON_KEY:
+        print("Error: POLYGON_API_KEY is not set. Please configure it in your .env file or environment variables.")
+        return pd.DataFrame()
+
     try:
-        return yf.download(symbol, period=f"{days}d", interval="1d")
+        # Calculate from and to dates
+        to_date = date.today()
+        from_date = to_date - timedelta(days=days)
+        from_date_str = from_date.strftime("%Y-%m-%d")
+        to_date_str = to_date.strftime("%Y-%m-%d")
+
+        client = RESTClient(POLYGON_KEY) # Initialize client outside 'with' block
+        resp = client.stocks_equities_aggregates(symbol, 1, "day", from_date_str, to_date_str)
+
+
+        # Check for empty response
+        if not resp.results:
+            print(f"No results found for {symbol} from {from_date_str} to {to_date_str}")
+            return pd.DataFrame()
+
+        df = pd.DataFrame(resp.results)
+        df['timestamp'] = pd.to_datetime(df['t'], unit='ms')
+        df = df.rename(columns={
+            'o': 'Open',
+            'h': 'High',
+            'l': 'Low',
+            'c': 'Close',
+            'v': 'Volume',
+            'timestamp': 'Date'
+        })
+        df = df.set_index('Date')
+        return df
+
     except Exception as e:
         print(f"Error fetching stock data for {symbol}: {e}")
         return pd.DataFrame()
+
 
 def get_option_chain(
     symbol: str,
     expiration: str = None,
     max_days_to_expiry: int = None
 ) -> pd.DataFrame:
+    if not POLYGON_KEY: # Check if the API key is set
+        print("Error: POLYGON_API_KEY is not set. Please configure it in your .env file or environment variables.")
+        return pd.DataFrame() # Return empty DataFrame if key is missing
+
     base_url = f"https://api.polygon.io/v3/snapshot/options/{symbol}"
     all_results = []
     url = base_url
@@ -106,6 +142,11 @@ def get_intraday_data(symbol: str, multiplier: int = 1, timespan: str = "minute"
     """
     Fetch intraday data for a given symbol from Polygon.
     """
+    if not POLYGON_KEY: # Check if the API key is set
+        print("Error: POLYGON_API_KEY is not set. Please configure it in your .env file or environment variables.")
+        return pd.DataFrame() # Return empty DataFrame if key is missing
+
+
     if not from_date or not to_date:
         raise ValueError("Both 'from_date' and 'to_date' must be provided for intraday data.")
 
