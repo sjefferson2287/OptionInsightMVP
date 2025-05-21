@@ -4,4 +4,4 @@ numpy
 scipy
 requests
 python-decouple
-polygon-client
+polygon-api-client
