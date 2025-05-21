@@ -25,5 +25,12 @@
     "bb_break_upper": false,
     "bb_tolerance": 0.01       
   },
+  "indicators": {
+    "ema_fast": 12,
+    "ema_slow": 26,
+    "macd_fast": 12,
+    "macd_slow": 26,
+    "macd_signal": 9
+  },
   "risk_free_rate": 0.03
 }
