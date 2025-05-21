@@ -98,6 +98,19 @@ optioninsight_mvp/
 }
 ```
 
+### Configuration Details:
+
+-   `"symbols"`: (list of strings) - List of stock tickers to process.
+-   `"correlations"`: (object) - Mapping of a primary symbol to a correlated symbol (e.g., `"MARA": "BTC-USD"`). Used for future trend confirmation features.
+-   `"expiration"`: (string, "YYYY-MM-DD") - The target options expiration date to fetch.
+-   `"lookback_days"`: (integer) - Number of historical days to fetch for calculating technical indicators.
+-   `"filters"`: (object) - Contains thresholds for filtering options contracts:
+    -   `"min_delta"`: (float) - Minimum absolute delta.
+    -   `"max_theta"`: (float) - Maximum (most negative) theta.
+    -   `"min_iv"`: (float) - Minimum implied volatility.
+-   `technical_filters`: (object, optional) - Contains thresholds for technical indicator-based signals:
+    -   `"fib_tolerance"`: (float, default 0.02) - The tolerance (as a decimal, e.g., 0.02 for 2%) for considering the current price near a Fibonacci retracement level. This is used to set the `nearFib` flag in the output report, which can then be used for scoring.
+
 ---
 
 ## Future Enhancements (V2+)

@@ -21,24 +21,34 @@ def get_stock_data(symbol: str, days: int = 30) -> pd.DataFrame:
         to_date_str = to_date.strftime("%Y-%m-%d")
 
         client = RESTClient(POLYGON_KEY) # Initialize client outside 'with' block
-        resp = client.stocks_equities_aggregates(symbol, 1, "day", from_date_str, to_date_str)
+        # Corrected method name from stocks_equities_aggregates to get_aggs
+        aggs = client.get_aggs(symbol, 1, "day", from_date_str, to_date_str)
 
 
         # Check for empty response
-        if not resp.results:
+        if not aggs: # Changed from resp.results to aggs (directly a list)
             print(f"No results found for {symbol} from {from_date_str} to {to_date_str}")
             return pd.DataFrame()
+        
+        # --- End temporary print (Removed) ---
 
-        df = pd.DataFrame(resp.results)
-        df['timestamp'] = pd.to_datetime(df['t'], unit='ms')
+        df = pd.DataFrame(aggs) # df will have columns: open, high, low, close, volume, vwap, timestamp, transactions, otc
+
+        # Convert timestamp to datetime and set as 'Date'
+        df['Date'] = pd.to_datetime(df['timestamp'], unit='ms')
+
+        # Select and rename columns to the desired format
         df = df.rename(columns={
-            'o': 'Open',
-            'h': 'High',
-            'l': 'Low',
-            'c': 'Close',
-            'v': 'Volume',
-            'timestamp': 'Date'
+            'open': 'Open',
+            'high': 'High',
+            'low': 'Low',
+            'close': 'Close',
+            'volume': 'Volume'
         })
+        
+        # Keep only the required columns
+        df = df[['Date', 'Open', 'High', 'Low', 'Close', 'Volume']]
+        
         df = df.set_index('Date')
         return df
 

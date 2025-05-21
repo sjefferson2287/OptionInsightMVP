@@ -60,6 +60,14 @@ def generate_report(symbol: str,
     df["EMA_Signal"] = ema_sig
     df["MACD_Hist"]  = macd_hist
 
+    # Add nearFib column
+    fib_tol = tech_filters.get("fib_tolerance", 0.02)
+    fib_cols = [c for c in df.columns if c.startswith("fibDist_")]
+    if fib_cols:  # Check if any fibDist columns exist
+        df["nearFib"] = df[fib_cols].min(axis=1) <= fib_tol
+    else:
+        df["nearFib"] = False # Default to False if no fibDist columns
+
     # 1b) Flag missing indicator signals (check if core values are NA)
     missing = pd.isna(rsi_val) or pd.isna(upperBB) or pd.isna(lowerBB) or pd.isna(price)
     df["missing_signal"] = missing # Assign boolean directly
@@ -132,6 +140,8 @@ def generate_report(symbol: str,
     if "openInterest" in df.columns: score += (df["openInterest"] >= filters.get("min_open_interest", 0)).fillna(0).astype(int)
     # Add BB break score explicitly if desired
     # if tech_filters.get("bb_break_lower") and "Close" in df.columns ... : score += (...)
+    if "nearFib" in df.columns: # Ensure nearFib column was created
+            score += df["nearFib"].astype(int) # Add 1 if nearFib is True
     df["score"] = score
 
     # --- SECTION 6: SELECT OUTPUT COLUMNS ---
@@ -143,7 +153,7 @@ def generate_report(symbol: str,
         "RSI", "UpperBB", "LowerBB", "Close", # Keep core indicators
         "EMA_Signal", "MACD_Hist", # New indicators
         "bb_norm", "rsi_norm", "trend_pass", "missing_signal", # Calculated metrics
-        # "nearFib", # Only include if calculated and needed
+        "nearFib", # Only include if calculated and needed
         "score"
     ]
     existing_columns = [c for c in columns if c in df.columns]
