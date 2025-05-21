@@ -21,25 +21,32 @@ def get_stock_data(symbol: str, days: int = 30) -> pd.DataFrame:
         to_date_str = to_date.strftime("%Y-%m-%d")
 
         client = RESTClient(POLYGON_KEY) # Initialize client outside 'with' block
-        resp = client.get_aggs(symbol, 1, "day", from_date_str, to_date_str)
+        # Corrected method name from stocks_equities_aggregates to get_aggs
+        aggs = client.get_aggs(symbol, 1, "day", from_date_str, to_date_str)
 
 
         # Check for empty response
-        if not resp:  # Check if the list itself is empty
+        if not aggs: # Changed from resp.results to aggs (directly a list)
             print(f"No results found for {symbol} from {from_date_str} to {to_date_str}")
             return pd.DataFrame()
+        
+        df = pd.DataFrame(aggs) # df will have columns: open, high, low, close, volume, vwap, timestamp, transactions, otc
 
-        df = pd.DataFrame(resp)  # Pass the list directly to DataFrame
-        # Assuming 'timestamp' is the correct field from the Aggregate object
-        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms') 
+        # Convert timestamp to datetime and set as 'Date'
+        df['Date'] = pd.to_datetime(df['timestamp'], unit='ms')
+
+        # Select and rename columns to the desired format
         df = df.rename(columns={
-            'open': 'Open',      # Changed 'o' to 'open'
-            'high': 'High',      # Changed 'h' to 'high'
-            'low': 'Low',        # Changed 'l' to 'low'
-            'close': 'Close',    # Changed 'c' to 'close'
-            'volume': 'Volume',  # Changed 'v' to 'volume'
-            'timestamp': 'Date'
+            'open': 'Open',
+            'high': 'High',
+            'low': 'Low',
+            'close': 'Close',
+            'volume': 'Volume'
         })
+        
+        # Keep only the required columns
+        df = df[['Date', 'Open', 'High', 'Low', 'Close', 'Volume']]
+        
         df = df.set_index('Date')
         return df
 

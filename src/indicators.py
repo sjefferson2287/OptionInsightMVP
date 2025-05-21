@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 
 def compute_ema_crossover(df: pd.DataFrame, fast: int = 12, slow: int = 26) -> pd.Series:
     """
@@ -25,21 +26,25 @@ def compute_macd_hist(df: pd.DataFrame, fast: int = 12, slow: int = 26, signal: 
 
 def compute_fibonacci(df: pd.DataFrame, window: int = None) -> pd.DataFrame:
     """
-    Adds fib_23, fib_38, fib_50, fib_61, fib_78 (levels)
-    and fibDist_23… fibDist_78 (abs % dist) based on min/max over window.
+    Adds fib_236, fib_382, fib_500, fib_618, fib_786 (levels)
+    and fibDist_236… fibDist_786 (abs % dist) based on min/max over window.
     """
-    if window:
-        slice_df = df.tail(window)
+    if window is None or window == 0:
+        df_window = df
     else:
-        slice_df = df
-    low, high = slice_df["Close"].min(), slice_df["Close"].max()
+        df_window = df.iloc[-window:]
+
+    min_close = df_window["Close"].min()
+    max_close = df_window["Close"].max()
+    price_range = max_close - min_close
+
     ratios = [0.236, 0.382, 0.5, 0.618, 0.786]
-    for r in ratios:
-        lvl      = high - (high - low) * r
-        col_lvl  = f"fib_{int(r*1000)//10}"
-        col_dist = f"fibDist_{int(r*1000)//10}"
-        df[col_lvl]     = lvl
-        df[col_dist]    = (df["Close"] - lvl).abs() / lvl
+
+    for ratio in ratios:
+        level = max_close - price_range * ratio
+        pct_label = str(int(ratio * 1000))
+        df[f"fib_{pct_label}"] = level
+        df[f"fibDist_{pct_label}"] = np.where(level != 0, abs(df["Close"] - level) / level, np.nan)
     return df
 
 def compute_indicators(df: pd.DataFrame, ema_fast: int = 12, ema_slow: int = 26, macd_fast: int = 12, macd_slow: int = 26, macd_signal: int = 9) -> pd.DataFrame:
@@ -72,8 +77,8 @@ def compute_indicators(df: pd.DataFrame, ema_fast: int = 12, ema_slow: int = 26,
     # MACD histogram
     df = compute_macd_hist(df, fast=macd_fast, slow=macd_slow, signal=macd_signal)
 
-    # Fibonacci proximity over the last 30 days
-    df = compute_fibonacci(df, window=30)
+    # Fibonacci levels & distances
+    df = compute_fibonacci(df, window=len(df))
 
     # Clean up intermediate
     df.drop(columns=["STD20"], inplace=True)
