@@ -3,7 +3,7 @@ import requests
 import pandas as pd
 from datetime import datetime, date, timedelta
 from decouple import config
-from polygon import RESTClient
+from polygon.rest import RESTClient
 
 POLYGON_KEY = config("POLYGON_API_KEY", default="") # Get key, default to empty string if not found
 BASE_URL = "https://api.polygon.io"
@@ -21,22 +21,23 @@ def get_stock_data(symbol: str, days: int = 30) -> pd.DataFrame:
         to_date_str = to_date.strftime("%Y-%m-%d")
 
         client = RESTClient(POLYGON_KEY) # Initialize client outside 'with' block
-        resp = client.stocks_equities_aggregates(symbol, 1, "day", from_date_str, to_date_str)
+        resp = client.get_aggs(symbol, 1, "day", from_date_str, to_date_str)
 
 
         # Check for empty response
-        if not resp.results:
+        if not resp:  # Check if the list itself is empty
             print(f"No results found for {symbol} from {from_date_str} to {to_date_str}")
             return pd.DataFrame()
 
-        df = pd.DataFrame(resp.results)
-        df['timestamp'] = pd.to_datetime(df['t'], unit='ms')
+        df = pd.DataFrame(resp)  # Pass the list directly to DataFrame
+        # Assuming 'timestamp' is the correct field from the Aggregate object
+        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms') 
         df = df.rename(columns={
-            'o': 'Open',
-            'h': 'High',
-            'l': 'Low',
-            'c': 'Close',
-            'v': 'Volume',
+            'open': 'Open',      # Changed 'o' to 'open'
+            'high': 'High',      # Changed 'h' to 'high'
+            'low': 'Low',        # Changed 'l' to 'low'
+            'close': 'Close',    # Changed 'c' to 'close'
+            'volume': 'Volume',  # Changed 'v' to 'volume'
             'timestamp': 'Date'
         })
         df = df.set_index('Date')

@@ -1,8 +1,3 @@
-import argparse
-import json
-import os
-import pandas as pd
-import time
 import logging
 import numpy as np
 
@@ -13,6 +8,7 @@ log = logging.getLogger(__name__)
 # Assuming your custom modules are in a 'src' folder relative to main.py
 from src.fetch_data import get_stock_data, get_option_chain
 from src.indicators import compute_indicators
+from src.financial_utils import calculate_historical_volatility
 from src.pricing_models import calculate_theoretical_prices
 from src.greeks import compute_greeks
 from src.report import generate_report
@@ -68,42 +64,30 @@ def main(symbols=None, expiration=None):
         if stock_df is None or stock_df.empty:
             log.warning(f"No stock data fetched for {symbol}, skipping.")
             continue
+        log.debug(f"For {symbol}, get_stock_data returned {len(stock_df)} rows.")
         log.debug(f"Got stock data for {symbol}. Time: {time.time() - symbol_start_time:.2f}s")
 
-        if len(stock_df) < 2:
-            log.warning(f"Not enough historical data ({len(stock_df)} days) for {symbol} to calculate volatility, skipping.")
+        if len(stock_df.dropna(subset=['Close'])) < 2:
+            log.warning(f"Not enough historical data with non-NaN Close prices ({len(stock_df.dropna(subset=['Close']))} rows) for {symbol} to calculate volatility, skipping.")
             continue
 
         last_close = stock_df["Close"].iloc[-1]
 
         log.debug(f"Calculating hist_vol for {symbol}...")
-        step_start_time = time.time() # Optional profiling
-        rolling_std = stock_df["Close"].pct_change().rolling(window=20).std()
-        if rolling_std.empty:
-            log.warning(f"Could not calculate historical volatility (rolling stddev series empty) for {symbol}, skipping.")
-            continue
-        last_std = rolling_std.iloc[-1]
-        na_flag = False
-        if isinstance(last_std, pd.Series):
-            na_flag = last_std.isna().any()
+        step_start_time = time.time()
+       
+        hist_vol = np.nan # Default to NaN
+        if 'Close' not in stock_df.columns or not pd.api.types.is_numeric_dtype(stock_df['Close']):
+            log.warning(f"'Close' column missing or not numeric for {symbol}. Skipping volatility calculation.")
         else:
-            na_flag = pd.isna(last_std)
-        if na_flag:
-            log.warning(f"Could not calculate historical volatility (result was NaN) for {symbol}, skipping.")
-            continue
-        try:
-            if isinstance(last_std, pd.Series):
-                 scalar_std = last_std.item()
-            else:
-                 scalar_std = last_std
-            hist_vol = float(scalar_std) * (252 ** 0.5)
-            log.debug(f"Calculated hist_vol for {symbol}: {hist_vol:.4f}. Time: {time.time() - step_start_time:.2f}s")
-        except ValueError as e:
-             log.warning(f"Error converting volatility std dev to float for {symbol}: {e}. Skipping.")
-             continue
-        except Exception as e:
-             log.warning(f"Unexpected error calculating final hist_vol for {symbol}: {e}. Skipping.")
-             continue
+            # Pass the original stock_df['Close'] series. The function handles dropna and length checks.
+            hist_vol = calculate_historical_volatility(stock_df["Close"], window=20) 
+
+        if pd.isna(hist_vol):
+            log.warning(f"Historical volatility calculation resulted in NaN for {symbol} (check logs from 'financial_utils' for details). Skipping symbol processing.")
+            continue # Skip to the next symbol if hist_vol is NaN
+           
+        log.debug(f"Calculated hist_vol for {symbol}: {hist_vol:.4f}. Time: {time.time() - step_start_time:.2f}s")
 
         log.debug(f"Calculating indicators for {symbol}...")
         step_start_time = time.time() # Optional profiling
