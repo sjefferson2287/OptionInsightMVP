@@ -1,5 +1,4 @@
-
-# OptionInsight Bot – Technical MVP Document (v1.0)
+# OptionInsight Bot – Technical MVP Document (v1.1)
 
 ## Overview
 The OptionInsight MVP is a Python-based command-line tool designed to scan a list of stock tickers, retrieve historical and options data, apply key technical and options-related metrics, and output a ranked list of trade candidates based on configurable criteria. This version is built for easy customization and future expansion.
@@ -54,7 +53,10 @@ The OptionInsight MVP is a Python-based command-line tool designed to scan a lis
   - IV, Greeks (Delta, Theta, Vega)
   - RSI, Upper/Lower Bands
   - Trade Score
-- Saves to `output/report.csv`
+- Saves to `output/report.csv` (Note: filenames are now timestamped e.g., report_YYYYMMDD_HHMMSS.csv)
+
+### 9. Theoretical Price Calculation
+- Calculated using the Black-Scholes model.
 
 ---
 
@@ -66,7 +68,7 @@ optioninsight_mvp/
 ├── config.json              # User-defined tickers, filters, and expiration
 ├── requirements.txt         # Python dependencies
 ├── output/
-│   └── report.csv           # Output report (Note: filenames are now timestamped e.g., report_YYYYMMDD_HHMMSS.csv)
+│   └── report_YYYYMMDD_HHMMSS.csv           # Output report (Note: filenames are now timestamped e.g., report_YYYYMMDD_HHMMSS.csv)
 └── src/
     ├── fetch_data.py        # Stock & option chain data (Polygon.io)
     ├── indicators.py        # RSI, Bollinger Bands
@@ -89,13 +91,23 @@ optioninsight_mvp/
     "TLT": "TNX",
     "IWM": "VIX"
   },
-  "expiration": "2024-04-26",
+  "expiration": null,
+  "max_days_to_expiry": 60,
   "lookback_days": 35,
   "filters": {
-    "min_delta": 0.3,
-    "max_theta": -0.2,
-    "min_iv": 0.25
-  }
+    "min_delta": 0.1,
+    "max_theta": -0.5,
+    "min_iv": 0.1,
+    "min_open_interest": 5
+  },
+  "technical_filters": {
+    "rsi_oversold": 40,
+    "rsi_overbought": 60,
+    "bb_break_lower": false,
+    "bb_break_upper": false,
+    "bb_tolerance": 0.01
+  },
+  "risk_free_rate": 0.03
 }
 ```
 *Note on `lookback_days`*: This has been updated to 35 from the original 30 to ensure a sufficient number of trading days are fetched for robust calculation of 20-day historical volatility, accommodating for weekends and holidays.*
@@ -109,6 +121,7 @@ optioninsight_mvp/
 - Sentiment analysis
 - Auto backtesting module
 - Alerts (email, webhook)
+- Moving averages
 
 ---
 
@@ -124,6 +137,5 @@ python main.py --symbols AAPL TSLA --expiration 2024-05-10
 ---
 
 ## Requirements
-Python 3.9+  
+Python 3.9+
 Libraries: `pandas`, `numpy`, `scipy`, `requests`, `polygon-api-client`, `python-decouple`
-
