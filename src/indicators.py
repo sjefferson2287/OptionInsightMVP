@@ -42,7 +42,7 @@ def compute_fibonacci(df: pd.DataFrame, window: int = None) -> pd.DataFrame:
         df[col_dist]    = (df["Close"] - lvl).abs() / lvl
     return df
 
-def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
+def compute_indicators(df: pd.DataFrame, ema_fast: int = 12, ema_slow: int = 26, macd_fast: int = 12, macd_slow: int = 26, macd_signal: int = 9) -> pd.DataFrame:
     """
     Compute and return a DataFrame with:
       - MA20, UpperBB, LowerBB
@@ -67,10 +67,10 @@ def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
     df["RSI"] = 100 - (100 / (1 + rs))
 
     # EMA crossover signal
-    df["EMA_Signal"] = compute_ema_crossover(df, fast=12, slow=26)
+    df["EMA_Signal"] = compute_ema_crossover(df, fast=ema_fast, slow=ema_slow)
 
     # MACD histogram
-    df = compute_macd_hist(df, fast=12, slow=26, signal=9)
+    df = compute_macd_hist(df, fast=macd_fast, slow=macd_slow, signal=macd_signal)
 
     # Fibonacci proximity over the last 30 days
     df = compute_fibonacci(df, window=30)

@@ -37,6 +37,7 @@ def main(symbols=None, expiration=None):
     if config is None:
         log.debug("Exiting because config failed to load.")
         return
+    indicator_config = config.get("indicators", {})
 
     log.debug("Config loaded, setting up variables...")
     # Load settings with defaults
@@ -91,7 +92,19 @@ def main(symbols=None, expiration=None):
 
         log.debug(f"Calculating indicators for {symbol}...")
         step_start_time = time.time() # Optional profiling
-        indicators = compute_indicators(stock_df)
+        ema_fast = indicator_config.get("ema_fast", 12)
+        ema_slow = indicator_config.get("ema_slow", 26)
+        macd_fast = indicator_config.get("macd_fast", 12)
+        macd_slow = indicator_config.get("macd_slow", 26)
+        macd_signal = indicator_config.get("macd_signal", 9)
+        indicators = compute_indicators(
+            stock_df,
+            ema_fast=ema_fast,
+            ema_slow=ema_slow,
+            macd_fast=macd_fast,
+            macd_slow=macd_slow,
+            macd_signal=macd_signal
+        )
         if indicators is None or indicators.empty:
             log.warning(f"Could not compute indicators for {symbol}, skipping.")
             continue
