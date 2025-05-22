@@ -71,16 +71,7 @@ def run_auth_flow():
 
     # 2) Start an HTTP server on localhost:8000
     httpd = HTTPServer(("127.0.0.1", 8000), CallbackHandler)
-    
-    # Create SSL context
-    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    context.load_cert_chain(keyfile="key.pem", certfile="cert.pem")
-    
-    httpd.socket = context.wrap_socket(
-        httpd.socket,
-        server_side=True
-    )
-    print("Starting HTTPS server on https://127.0.0.1:8000")  # Debug: Confirm server start
+    print("Starting HTTP server on http://127.0.0.1:8000")  # Debug: Confirm server start
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
 
     # 3) Open the Schwab login/consent page

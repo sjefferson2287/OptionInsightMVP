@@ -5,8 +5,9 @@ import os
 from datetime import datetime, timedelta
 
 import pandas as pd
+import math
 
-from src.fetch_data import get_stock_data, get_option_chain
+from src.fetch_data import get_stock_data, get_option_chain, get_historic_option_price
 from src.indicators import compute_indicators
 from src.pricing_models import calculate_theoretical_prices
 from src.greeks import compute_greeks
@@ -94,27 +95,54 @@ def backtest_single_leg(
 
         # pick the top contract by score → entry
         entry = report.sort_values(["score", "mispricing"], ascending=[False, False]).iloc[0]
-        entry_price = entry["lastPrice"]
         entry_date  = current
+        
+        # Get historic entry price
+        entry_price = get_historic_option_price(entry["contractSymbol"], entry_date)
+        if math.isnan(entry_price):
+            # print(f"Debug: {current} - Entry price is NaN for {entry['contractSymbol']} on {entry_date}. Skipping trade.")
+            current += timedelta(days=1)
+            continue
+            
         exp_date    = pd.to_datetime(entry["expiration"]).date()
 
         # **EXIT**: walk day by day until signal or expiry
-        exit_price = entry_price
+        exit_price = entry_price # Default if no exit signal or price found before expiry
         exit_date  = entry_date
-        while exit_date < exp_date:
-            exit_date += timedelta(days=1)
+        
+        # If position held until expiry, exit price is price on expiry date.
+        # If exited earlier due to signal, exit price is on that signal day.
+        
+        temp_exit_date = entry_date
+        found_exit_signal = False
+        while temp_exit_date < exp_date:
+            temp_exit_date += timedelta(days=1)
+            if temp_exit_date > last: # Ensure we don't go beyond overall backtest end_date
+                break 
+            
             # rebuild indicators up to new date
-            hist2 = stock_hist.loc[:exit_date].tail(lookback)
+            hist2 = stock_hist.loc[:temp_exit_date].tail(lookback)
+            if len(hist2) < lookback: # Not enough data for indicators
+                continue
             inds2 = compute_indicators(hist2)
-            if should_exit(exit_date, entry, inds2, tech_filters):
-                # fetch option price for this date
-                chain2 = get_option_chain(symbol, expiration=entry["expiration"])
-                row2   = chain2.loc[chain2["contractSymbol"] == entry["contractSymbol"]]
-                if not row2.empty:
-                    exit_price = row2["lastPrice"].iloc[0]
-                break
 
-        pnl = (exit_price - entry_price) * 100  # per‐contract ×100
+            if should_exit(temp_exit_date, entry, inds2, tech_filters):
+                exit_date = temp_exit_date
+                exit_price = get_historic_option_price(entry["contractSymbol"], exit_date)
+                found_exit_signal = True
+                break
+        
+        if not found_exit_signal and exit_date == entry_date: # Held to expiry or beyond backtest end
+            exit_date = min(exp_date, last) # Actual exit is on expiry or last day of backtest
+            exit_price = get_historic_option_price(entry["contractSymbol"], exit_date)
+
+        # If exit_price is still nan (e.g. no trade on exit_date), PnL will be nan.
+        # This is acceptable as it flags an issue with that specific trade's data.
+        if math.isnan(exit_price):
+            # print(f"Debug: {current} - Exit price is NaN for {entry['contractSymbol']} on {exit_date}. PnL will be NaN.")
+            pass # Let PnL be NaN
+
+        pnl = (exit_price - entry_price) * 100 if not math.isnan(exit_price) and not math.isnan(entry_price) else math.nan # per‐contract ×100
         results.append({
             "symbol":       symbol,
             "entry_date":   entry_date,
@@ -159,14 +187,20 @@ if __name__ == "__main__":
     )
 
     # summary
-    total = len(bt)
-    wins  = bt["pnl"].gt(0).sum()
-    ret   = bt["pnl"].sum()
-    avg   = bt["pnl"].mean()
+    if not bt.empty:
+        total = len(bt)
+        # Handle potential NaNs in PnL before summing/averaging
+        valid_pnl = bt["pnl"].dropna()
+        
+        wins  = valid_pnl.gt(0).sum()
+        ret   = valid_pnl.sum()
+        avg   = valid_pnl.mean() if not valid_pnl.empty else 0.0
 
-    print(f"Trades: {total}, Wins: {wins}/{total}, Total PnL: ${ret:.2f}, Avg: ${avg:.2f}")
+        print(f"Trades: {total}, Wins: {wins}/{total}, Total PnL: ${ret:.2f}, Avg: ${avg:.2f}")
 
-    os.makedirs("output", exist_ok=True)
-    out_path = f"output/backtest_{symbol}_{start}_{end}.csv"
-    bt.to_csv(out_path, index=False)
-    print(f"Backtest results saved to {out_path}")
+        os.makedirs("output", exist_ok=True)
+        out_path = f"output/backtest_{symbol}_{start}_{end}.csv"
+        bt.to_csv(out_path, index=False)
+        print(f"Backtest results saved to {out_path}")
+    else:
+        print("No trades were made during the backtest period.")

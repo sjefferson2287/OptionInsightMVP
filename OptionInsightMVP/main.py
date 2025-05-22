@@ -1,24 +1,18 @@
-import logging
-import numpy as np
 import argparse
-import time
 import json
 import os
 import pandas as pd
-import requests # Added for requests.exceptions.RequestException
+import time
+import logging
+import numpy as np
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 log = logging.getLogger(__name__)
 
-from decouple import config as decouple_config # To avoid conflict with local 'config' variable
-
 # Assuming your custom modules are in a 'src' folder relative to main.py
 from src.fetch_data import get_stock_data, get_option_chain
-from src.streamer import SchwabStreamer
-from src.schwab_client import get_user_preferences # Added import
 from src.indicators import compute_indicators
-from src.financial_utils import calculate_historical_volatility
 from src.pricing_models import calculate_theoretical_prices
 from src.greeks import compute_greeks
 from src.report import generate_report
@@ -47,7 +41,6 @@ def main(symbols=None, expiration=None):
     if config is None:
         log.debug("Exiting because config failed to load.")
         return
-    indicator_config = config.get("indicators", {})
 
     log.debug("Config loaded, setting up variables...")
     # Load settings with defaults
@@ -75,46 +68,46 @@ def main(symbols=None, expiration=None):
         if stock_df is None or stock_df.empty:
             log.warning(f"No stock data fetched for {symbol}, skipping.")
             continue
-        log.debug(f"For {symbol}, get_stock_data returned {len(stock_df)} rows.")
         log.debug(f"Got stock data for {symbol}. Time: {time.time() - symbol_start_time:.2f}s")
 
-        if len(stock_df.dropna(subset=['Close'])) < 2:
-            log.warning(f"Not enough historical data with non-NaN Close prices ({len(stock_df.dropna(subset=['Close']))} rows) for {symbol} to calculate volatility, skipping.")
+        if len(stock_df) < 2:
+            log.warning(f"Not enough historical data ({len(stock_df)} days) for {symbol} to calculate volatility, skipping.")
             continue
 
         last_close = stock_df["Close"].iloc[-1]
 
         log.debug(f"Calculating hist_vol for {symbol}...")
-        step_start_time = time.time()
-       
-        hist_vol = np.nan # Default to NaN
-        if 'Close' not in stock_df.columns or not pd.api.types.is_numeric_dtype(stock_df['Close']):
-            log.warning(f"'Close' column missing or not numeric for {symbol}. Skipping volatility calculation.")
+        step_start_time = time.time() # Optional profiling
+        rolling_std = stock_df["Close"].pct_change().rolling(window=20).std()
+        if rolling_std.empty:
+            log.warning(f"Could not calculate historical volatility (rolling stddev series empty) for {symbol}, skipping.")
+            continue
+        last_std = rolling_std.iloc[-1]
+        na_flag = False
+        if isinstance(last_std, pd.Series):
+            na_flag = last_std.isna().any()
         else:
-            # Pass the original stock_df['Close'] series. The function handles dropna and length checks.
-            hist_vol = calculate_historical_volatility(stock_df["Close"], window=20) 
-
-        if pd.isna(hist_vol):
-            log.warning(f"Historical volatility calculation resulted in NaN for {symbol} (check logs from 'financial_utils' for details). Skipping symbol processing.")
-            continue # Skip to the next symbol if hist_vol is NaN
-           
-        log.debug(f"Calculated hist_vol for {symbol}: {hist_vol:.4f}. Time: {time.time() - step_start_time:.2f}s")
+            na_flag = pd.isna(last_std)
+        if na_flag:
+            log.warning(f"Could not calculate historical volatility (result was NaN) for {symbol}, skipping.")
+            continue
+        try:
+            if isinstance(last_std, pd.Series):
+                 scalar_std = last_std.item()
+            else:
+                 scalar_std = last_std
+            hist_vol = float(scalar_std) * (252 ** 0.5)
+            log.debug(f"Calculated hist_vol for {symbol}: {hist_vol:.4f}. Time: {time.time() - step_start_time:.2f}s")
+        except ValueError as e:
+             log.warning(f"Error converting volatility std dev to float for {symbol}: {e}. Skipping.")
+             continue
+        except Exception as e:
+             log.warning(f"Unexpected error calculating final hist_vol for {symbol}: {e}. Skipping.")
+             continue
 
         log.debug(f"Calculating indicators for {symbol}...")
         step_start_time = time.time() # Optional profiling
-        ema_fast = indicator_config.get("ema_fast", 12)
-        ema_slow = indicator_config.get("ema_slow", 26)
-        macd_fast = indicator_config.get("macd_fast", 12)
-        macd_slow = indicator_config.get("macd_slow", 26)
-        macd_signal = indicator_config.get("macd_signal", 9)
-        indicators = compute_indicators(
-            stock_df,
-            ema_fast=ema_fast,
-            ema_slow=ema_slow,
-            macd_fast=macd_fast,
-            macd_slow=macd_slow,
-            macd_signal=macd_signal
-        )
+        indicators = compute_indicators(stock_df)
         if indicators is None or indicators.empty:
             log.warning(f"Could not compute indicators for {symbol}, skipping.")
             continue
@@ -195,56 +188,6 @@ def main(symbols=None, expiration=None):
 
     log.debug(f"Reached end of main function. Total runtime: {time.time() - overall_start_time:.2f}s") # ADDED
 
-def start_schwab_streaming():
-    """Handles the setup and execution of the SchwabStreamer."""
-    app_config = load_config() # Reload config to get the latest, especially 'schwab' section
-    if not (app_config and app_config.get("data_source") == "schwab" and app_config.get("schwab", {}).get("use_streaming")):
-        log.info("Schwab streaming is not enabled or data_source is not schwab.")
-        return
-
-    log.info("Schwab streaming is enabled. Starting streamer...")
-    
-    def handle_stream_message(data_messages):
-        for message_item in data_messages:
-            log.info(f"Stream Data: {message_item}")
-
-    try:
-        access_token = decouple_config('SCHWAB_ACCESS_TOKEN', default='')
-        if not access_token:
-            log.error("SCHWAB_ACCESS_TOKEN not found in .env file. Cannot fetch streamer preferences.")
-            return # This is now valid within a function
-
-        log.info("Fetching Schwab user preferences for streaming...")
-        streamer_info = get_user_preferences(access_token)
-        log.info("Successfully fetched streamer preferences.")
-
-        streamer = SchwabStreamer(streamer_info)
-        
-        equity_symbols_to_stream = app_config.get("symbols", []) 
-        if not equity_symbols_to_stream:
-            log.warning("No equity symbols configured for streaming.")
-        else:
-            log.info(f"Subscribing to LEVELONE_EQUITIES for: {equity_symbols_to_stream}")
-            streamer.subscribe("LEVELONE_EQUITIES", equity_symbols_to_stream)
-
-        option_symbols_to_stream = [] 
-        if option_symbols_to_stream:
-            log.info(f"Subscribing to LEVELONE_OPTIONS for: {option_symbols_to_stream}")
-            streamer.subscribe("LEVELONE_OPTIONS", option_symbols_to_stream)
-        else:
-            log.info("No option symbols specified for streaming.")
-
-        log.info("SchwabStreamer started. Waiting for messages... (Ctrl+C to stop)")
-        streamer.run(handle_stream_message)
-    except FileNotFoundError:
-        log.error("Streamer SSL cert/key file not found. Ensure cert.pem and key.pem are present, or SCHWAB_CERT_FILE/SCHWAB_KEY_FILE are set in .env.")
-    except ValueError as ve:
-        log.error(f"Streamer initialization error (likely missing credentials in .env or issue with preferences): {ve}")
-    except requests.exceptions.RequestException as re: 
-        log.error(f"Failed to fetch streamer preferences from Schwab API: {re}", exc_info=True)
-    except Exception as e:
-        log.error(f"An unexpected error occurred with SchwabStreamer setup or execution: {e}", exc_info=True)
-
 if __name__ == "__main__":
     log.debug("Script entry point (__name__ == '__main__')")
     parser = argparse.ArgumentParser(description="OptionInsight MVP Scanner")
@@ -263,5 +206,3 @@ if __name__ == "__main__":
     log.debug("Calling main function...")
     main(symbols=args.symbols, expiration=args.expiration)
     log.debug("main function finished.")
-
-    start_schwab_streaming() # Call the new function

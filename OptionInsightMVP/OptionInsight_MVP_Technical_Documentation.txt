@@ -1,0 +1,127 @@
+
+# OptionInsight Bot – Technical MVP Document (v1.0)
+
+## Overview
+The OptionInsight MVP is a Python-based command-line tool designed to scan a list of stock tickers, retrieve historical and options data, apply key technical and options-related metrics, and output a ranked list of trade candidates based on configurable criteria. This version is built for easy customization and future expansion.
+
+---
+
+## Core Features
+
+### 1. Ticker Scanning
+- Configurable list of tickers (e.g., MARA, TLT, IWM) via `config.json` or CLI args
+- Dynamic addition of new tickers or expiration dates without changing the code
+
+### 2. Historical Stock Data
+- Pulled using `yfinance`
+- Includes daily Open, High, Low, Close, and Volume
+- Used to compute technical indicators (e.g., RSI, Bollinger Bands)
+
+### 3. Option Chain Retrieval
+- Full option chain (calls and puts) pulled for each ticker
+- Expiration is set via CLI or `config.json`
+- Data includes bid, ask, implied volatility, and last traded price
+
+### 4. Greeks Calculation
+- Using Black-Scholes model:
+  - Delta
+  - Gamma
+  - Theta
+  - Vega
+- Used to assess trade risk and reward potential
+
+### 5. Technical Indicators
+- RSI (14)
+- Bollinger Bands (20-day MA + 2 std dev)
+- Moving averages (future implementation)
+
+### 6. Trade Scoring
+- Each option is scored based on:
+  - Delta range (reward potential)
+  - Theta (time decay risk)
+  - RSI trend
+  - Bollinger Band proximity
+  - Correlated asset alignment (stub logic)
+
+### 7. Correlation Support (Stub for V1)
+- Configurable asset correlation mapping (e.g., MARA → BTC)
+- Placeholder for trend matching and future signal confirmation
+
+### 8. CSV Report Generation
+- Output includes:
+  - Ticker, Option Symbol, Strike, Type, Expiration
+  - Market Price, Theoretical Price, Mispricing
+  - IV, Greeks (Delta, Theta, Vega)
+  - RSI, Upper/Lower Bands
+  - Trade Score
+- Saves to `output/report.csv`
+
+---
+
+## Directory Structure
+
+```
+optioninsight_mvp/
+├── main.py                  # Entry point for the bot
+├── config.json              # User-defined tickers, filters, and expiration
+├── requirements.txt         # Python dependencies
+├── output/
+│   └── report.csv           # Output report
+└── src/
+    ├── fetch_data.py        # Stock & option chain data
+    ├── indicators.py        # RSI, Bollinger Bands
+    ├── pricing_models.py    # Black-Scholes model
+    ├── greeks.py            # Greeks calculations
+    ├── report.py            # Output formatting and export
+    ├── utils.py             # Reusable helper functions
+    └── correlation.py       # (Stub) correlated asset comparison
+```
+
+---
+
+## Configuration (`config.json`)
+```json
+{
+  "symbols": ["MARA", "TLT", "IWM"],
+  "correlations": {
+    "MARA": "BTC-USD",
+    "TLT": "TNX",
+    "IWM": "VIX"
+  },
+  "expiration": "2024-04-26",
+  "lookback_days": 30,
+  "filters": {
+    "min_delta": 0.3,
+    "max_theta": -0.2,
+    "min_iv": 0.25
+  }
+}
+```
+
+---
+
+## Future Enhancements (V2+)
+- Binomial Tree pricing model
+- Streamlit-based dashboard
+- SQLite or cloud storage
+- Sentiment analysis
+- Auto backtesting module
+- Alerts (email, webhook)
+
+---
+
+## Usage
+```bash
+# Default (uses config.json)
+python main.py
+
+# Override with CLI args
+python main.py --symbols AAPL TSLA --expiration 2024-05-10
+```
+
+---
+
+## Requirements
+Python 3.9+  
+Libraries: `yfinance`, `numpy`, `pandas`, `scipy`
+
